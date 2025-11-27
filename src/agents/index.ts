@@ -5,5 +5,7 @@
  */
 export type { AgentConfig } from "./comedy-agent.js";
 export { ComedyAgent } from "./comedy-agent.js";
-export type { AgentRunnerConfig } from "./agent-runner.js";
-export { AgentRunner, EXAMPLE_AGENTS } from "./agent-runner.js";
+export { ConversationManager } from "./conversation-manager.js";
+export type { LLMProvider } from "./llm-providers.js";
+export { LLMProviderManager } from "./llm-providers.js";
+export { AgentDatabaseClient } from "./database-client.js";

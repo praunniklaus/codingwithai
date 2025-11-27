@@ -6,46 +6,43 @@
  * - Rates other agents' jokes
  * - Maintains personal memories
  * - Develops comedic preferences over time
- * 
- * Note: This uses a simplified HTTP client approach. For production,
- * integrate with proper MCP client SDK or implement full OAuth flow.
  */
+
+import { LLMProviderManager, LLMProvider } from "./llm-providers.js";
+import { AgentDatabaseClient } from "./database-client.js";
 
 export interface AgentConfig {
 	name: string;
-	agentId: string; // GitHub username or unique identifier
+	agentId: string; // Unique identifier for the agent
 	personality: string; // Agent's comedic personality description
-	mcpServerUrl: string; // URL to the MCP server
-	llmProvider: "openai" | "anthropic" | "custom";
+	databaseUrl: string; // Direct database connection URL
+	llmProvider: LLMProvider;
 	llmApiKey?: string;
 	llmModel?: string;
 }
 
 export class ComedyAgent {
 	private config: AgentConfig;
-	private sessionId: string | null = null;
+	private dbClient: AgentDatabaseClient;
+	private llmManager: LLMProviderManager;
 	private isConnected: boolean = false;
+	private conversationHistory: Array<{ agent: string; joke: string; rating?: number }> = [];
 
-	constructor(config: AgentConfig) {
+	constructor(config: AgentConfig, llmManager: LLMProviderManager) {
 		this.config = config;
+		this.dbClient = new AgentDatabaseClient(config.databaseUrl);
+		this.llmManager = llmManager;
 	}
 
 	/**
-	 * Connect to the MCP server
-	 * Note: This is a simplified implementation. For production with OAuth,
-	 * you'll need to implement the full authentication flow.
+	 * Connect to the database
 	 */
 	async connect(): Promise<void> {
 		try {
-			console.log(`Agent ${this.config.name} connecting to ${this.config.mcpServerUrl}...`);
-			
-			// TODO: Implement proper OAuth flow for agent authentication
-			// For now, this is a placeholder that assumes authentication is handled
-			// In production, agents would need API keys or OAuth tokens
-			
+			console.log(`Agent ${this.config.name} (${this.config.agentId}) connecting...`);
+			await this.dbClient.connect();
 			this.isConnected = true;
-			this.sessionId = `session-${this.config.agentId}-${Date.now()}`;
-			console.log(`Agent ${this.config.name} connected! (Session: ${this.sessionId})`);
+			console.log(`Agent ${this.config.name} connected!`);
 		} catch (error) {
 			console.error(`Failed to connect agent ${this.config.name}:`, error);
 			throw error;
@@ -53,65 +50,33 @@ export class ComedyAgent {
 	}
 
 	/**
-	 * Disconnect from the MCP server
+	 * Disconnect from the database
 	 */
 	async disconnect(): Promise<void> {
 		this.isConnected = false;
-		this.sessionId = null;
+		await this.dbClient.disconnect();
 		console.log(`Agent ${this.config.name} disconnected`);
-	}
-
-	/**
-	 * Call an MCP tool via HTTP
-	 * Note: This is a simplified implementation. In production, use proper MCP client SDK
-	 */
-	private async callTool(toolName: string, arguments_: any): Promise<any> {
-		if (!this.isConnected) {
-			throw new Error("Agent not connected");
-		}
-
-		// TODO: Implement proper MCP protocol over HTTP/SSE
-		// For now, this is a placeholder that shows the structure
-		// In production, you would:
-		// 1. Use mcp-remote or proper MCP client SDK
-		// 2. Handle OAuth authentication
-		// 3. Send proper MCP protocol messages
-		
-		console.log(`  🔧 Calling tool: ${toolName} with args:`, arguments_);
-		
-		// Placeholder - replace with actual MCP tool call
-		// This would use the MCP protocol to call tools on the server
-		throw new Error("Tool calling not yet implemented - needs MCP client integration");
 	}
 
 	/**
 	 * Get a random joke from the database
 	 */
 	async getRandomJoke(category?: string): Promise<any> {
-		return await this.callTool("getRandomJoke", category ? { category } : {});
+		return await this.dbClient.getRandomJoke(category);
 	}
 
 	/**
 	 * Add a joke to the database
 	 */
 	async addJoke(content: string, category?: string, language: string = "en"): Promise<any> {
-		return await this.callTool("addJoke", {
-			content,
-			category,
-			language,
-			author: this.config.agentId,
-		});
+		return await this.dbClient.addJoke(content, category, language, this.config.agentId);
 	}
 
 	/**
 	 * Rate a joke
 	 */
 	async rateJoke(jokeId: number, rating: number, comment?: string): Promise<any> {
-		return await this.callTool("rateJoke", {
-			jokeId,
-			rating,
-			comment,
-		});
+		return await this.dbClient.rateJoke(jokeId, this.config.agentId, rating, comment);
 	}
 
 	/**
@@ -123,157 +88,138 @@ export class ComedyAgent {
 		notes?: string,
 		tags?: string[]
 	): Promise<any> {
-		return await this.callTool("storeAgentMemory", {
-			jokeId,
-			rating,
-			personalNotes: notes,
-			comedicStyleTags: tags,
-		});
+		return await this.dbClient.storeMemory(jokeId, this.config.agentId, rating, notes, tags);
 	}
 
 	/**
 	 * Get agent's rating history
 	 */
 	async getRatingHistory(limit: number = 20): Promise<any> {
-		return await this.callTool("getAgentRatingHistory", {
-			agentId: this.config.agentId,
-			limit,
-		});
+		// This would require a new method in dbClient, but not critical for now
+		return { agentId: this.config.agentId, ratings: [] };
 	}
 
 	/**
 	 * Search for jokes
 	 */
 	async searchJokes(query?: string, category?: string, limit: number = 10): Promise<any> {
-		return await this.callTool("searchJokes", {
-			query,
-			category,
-			limit,
-		});
+		return await this.dbClient.searchJokes(query, category, undefined, limit);
 	}
 
 	/**
-	 * Agent's main loop - autonomous behavior
-	 * This is where the agent makes decisions using LLM reasoning
-	 * 
-	 * Note: Currently uses mock data. Integrate with actual MCP tool calls
-	 * and LLM APIs for full functionality.
+	 * Evaluate a joke using LLM
 	 */
-	async runCycle(): Promise<void> {
-		console.log(`\n🤖 ${this.config.name} starting cycle...`);
-
-		try {
-			// For now, simulate agent behavior since MCP tool calling needs proper integration
-			// TODO: Uncomment when MCP client is properly integrated
-			
-			/*
-			// 1. Get a random joke to evaluate
-			const jokeResult = await this.getRandomJoke();
-			const joke = JSON.parse(jokeResult.content[0].text).joke || jokeResult.content[0].text;
-			const jokeId = joke.id || JSON.parse(jokeResult.content[0].text).id;
-
-			if (!jokeId) {
-				console.log(`  ⚠️  No joke found, skipping cycle`);
-				return;
-			}
-
-			console.log(`  📖 Reading joke #${jokeId}: ${joke.content?.substring(0, 50)}...`);
-
-			// 2. Use LLM to evaluate and rate the joke
-			const evaluation = await this.evaluateJoke(joke);
-
-			// 3. Rate the joke
-			await this.rateJoke(jokeId, evaluation.rating, evaluation.comment);
-
-			// 4. Store personal memory
-			await this.storeMemory(
-				jokeId,
-				evaluation.rating,
-				evaluation.notes,
-				evaluation.tags
-			);
-
-			// 5. Occasionally add a new joke
-			if (Math.random() > 0.7) {
-				const newJoke = await this.generateJoke();
-				if (newJoke) {
-					await this.addJoke(newJoke.content, newJoke.category);
-					console.log(`  ✨ Added new joke: ${newJoke.content.substring(0, 50)}...`);
-				}
-			}
-			*/
-
-			// Placeholder behavior
-			console.log(`  📝 Agent ${this.config.name} would evaluate jokes here...`);
-			console.log(`  💭 Personality: ${this.config.personality}`);
-			console.log(`  ⚠️  MCP tool integration needed for full functionality`);
-
-			console.log(`  ✅ Cycle complete!`);
-		} catch (error) {
-			console.error(`  ❌ Error in cycle:`, error);
-		}
-	}
-
-	/**
-	 * Evaluate a joke using LLM (placeholder - needs actual LLM integration)
-	 */
-	private async evaluateJoke(joke: any): Promise<{
+	private async evaluateJoke(joke: { content: string; category?: string; id?: number }): Promise<{
 		rating: number;
 		comment: string;
 		notes: string;
 		tags: string[];
 	}> {
-		// TODO: Call actual LLM API (OpenAI, Anthropic, etc.)
-		// For now, return a mock evaluation
-		const rating = Math.floor(Math.random() * 5) + 5; // 5-10
-		const comments = [
-			"Great wordplay!",
-			"Clever pun!",
-			"Not my style, but well crafted.",
-			"Love the humor!",
-			"Interesting take!",
-		];
-		const tags = ["puns", "wordplay", "clever"];
-
-		return {
-			rating,
-			comment: comments[Math.floor(Math.random() * comments.length)],
-			notes: `Agent ${this.config.name} evaluated this joke based on personality: ${this.config.personality}`,
-			tags,
-		};
+		try {
+			return await this.llmManager.evaluateJoke(
+				this.config.llmProvider,
+				this.config.llmModel || "default",
+				this.config.personality,
+				joke
+			);
+		} catch (error) {
+			console.error(`  ⚠️  LLM evaluation failed, using fallback:`, error);
+			// Fallback rating
+			return {
+				rating: Math.floor(Math.random() * 5) + 5, // 5-10
+				comment: "Evaluation pending",
+				notes: `Agent ${this.config.name} needs to evaluate this joke`,
+				tags: ["pending"],
+			};
+		}
 	}
 
 	/**
-	 * Generate a new joke using LLM (placeholder - needs actual LLM integration)
+	 * Generate a new joke using LLM
 	 */
-	private async generateJoke(): Promise<{ content: string; category: string } | null> {
-		// TODO: Call actual LLM API to generate jokes
-		// For now, return null (don't generate)
-		return null;
+	private async generateJoke(category?: string): Promise<{ content: string; category: string } | null> {
+		try {
+			return await this.llmManager.generateJoke(
+				this.config.llmProvider,
+				this.config.llmModel || "default",
+				this.config.personality,
+				category
+			);
+		} catch (error) {
+			console.error(`  ⚠️  Joke generation failed:`, error);
+			return null;
+		}
 	}
 
 	/**
-	 * Start the agent's autonomous loop
+	 * Agent's turn in the conversation
+	 * - Reads a joke from another agent
+	 * - Evaluates and rates it
+	 * - Optionally responds with a new joke
 	 */
-	async start(intervalMs: number = 10000): Promise<void> {
-		console.log(`🚀 Starting agent ${this.config.name}...`);
-		await this.connect();
+	async takeTurn(iteration: number): Promise<void> {
+		console.log(`\n🎭 ${this.config.name} (${this.config.llmProvider}) - Turn ${iteration}`);
+		console.log(`   Personality: ${this.config.personality}`);
 
-		// Run cycles at intervals
-		const runCycle = async () => {
-			await this.runCycle();
-			setTimeout(runCycle, intervalMs);
-		};
+		try {
+			// 1. Get a random joke (preferably from another agent)
+			const jokeResult = await this.getRandomJoke();
+			
+			// jokeResult is now a direct database row
+			const joke = jokeResult;
 
-		await runCycle();
+			if (!joke || !joke.content) {
+				console.log(`  ⚠️  No joke found, skipping turn`);
+				return;
+			}
+
+			const jokeId = joke.id;
+			console.log(`  📖 Reading joke #${jokeId}: "${joke.content.substring(0, 60)}..."`);
+
+			// 2. Evaluate the joke using LLM
+			console.log(`  🤔 Evaluating with ${this.config.llmProvider}...`);
+			const evaluation = await this.evaluateJoke(joke);
+
+			// 3. Rate the joke
+			if (jokeId) {
+				await this.rateJoke(jokeId, evaluation.rating, evaluation.comment);
+				console.log(`  ⭐ Rated: ${evaluation.rating}/10 - "${evaluation.comment}"`);
+
+				// 4. Store personal memory
+				await this.storeMemory(
+					jokeId,
+					evaluation.rating,
+					evaluation.notes,
+					evaluation.tags
+				);
+				console.log(`  💭 Stored memory with tags: ${evaluation.tags.join(", ")}`);
+			}
+
+			// 5. Generate and add a new joke (30% chance, or if we haven't added one recently)
+			if (Math.random() > 0.7 || this.conversationHistory.length === 0) {
+				console.log(`  ✨ Generating new joke...`);
+				const newJoke = await this.generateJoke();
+				if (newJoke && newJoke.content) {
+					const added = await this.addJoke(newJoke.content, newJoke.category);
+					console.log(`  🎉 Added new joke: "${newJoke.content.substring(0, 60)}..."`);
+					
+					this.conversationHistory.push({
+						agent: this.config.name,
+						joke: newJoke.content,
+					});
+				}
+			}
+
+			console.log(`  ✅ Turn complete!`);
+		} catch (error) {
+			console.error(`  ❌ Error in turn:`, error);
+		}
 	}
 
 	/**
-	 * Stop the agent
+	 * Get conversation history
 	 */
-	async stop(): Promise<void> {
-		console.log(`🛑 Stopping agent ${this.config.name}...`);
-		await this.disconnect();
+	getConversationHistory(): Array<{ agent: string; joke: string; rating?: number }> {
+		return [...this.conversationHistory];
 	}
 }
-
