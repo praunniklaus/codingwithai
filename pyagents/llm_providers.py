@@ -17,9 +17,29 @@ except ImportError:  # Soft dependency until installed
 	Anthropic = None  # type: ignore
 	AnthropicError = Exception  # type: ignore
 
+# Explicit import to avoid conflict with agents SDK's openai submodule
 try:
-	from openai import OpenAI, OpenAIError  # type: ignore
-except ImportError:
+	import sys
+	import importlib.util
+	
+	# Find the actual OpenAI SDK package (not agents SDK's openai submodule)
+	openai_spec = importlib.util.find_spec('openai')
+	if openai_spec and openai_spec.origin:
+		# Import and check if it has the OpenAI client class
+		import openai as openai_module
+		OpenAI = getattr(openai_module, 'OpenAI', None)
+		OpenAIError = getattr(openai_module, 'OpenAIError', Exception)
+		
+		if not OpenAI:
+			# This is the agents SDK's openai module, not the real SDK
+			print("[LLM] Warning: OpenAI SDK not found (agents SDK conflict)")
+			OpenAI = None  # type: ignore
+			OpenAIError = Exception  # type: ignore
+	else:
+		OpenAI = None  # type: ignore
+		OpenAIError = Exception  # type: ignore
+except Exception as e:
+	print(f"[LLM] OpenAI import failed: {e}")
 	OpenAI = None  # type: ignore
 	OpenAIError = Exception  # type: ignore
 
