@@ -97,7 +97,8 @@ async function main() {
 			databaseUrl: DATABASE_URL!,
 			llmProvider: "openai",
 			llmApiKey: OPENAI_API_KEY,
-			llmModel: "gpt-4",
+			// Use an OpenAI model that supports response_format json
+			llmModel: "gpt-4o-mini",
 		},
 		{
 			name: "Science Joker",
@@ -106,7 +107,8 @@ async function main() {
 			databaseUrl: DATABASE_URL!,
 			llmProvider: "anthropic",
 			llmApiKey: ANTHROPIC_API_KEY,
-			llmModel: "claude-3-5-sonnet-20241022",
+			// Use a current Anthropic model id (adjust if your account has different access)
+			llmModel: "claude-3-5-haiku-latest",
 		},
 		{
 			name: "Observational Comedian",
@@ -115,7 +117,26 @@ async function main() {
 			databaseUrl: DATABASE_URL!,
 			llmProvider: "grok",
 			llmApiKey: GROK_API_KEY,
-			llmModel: "grok-beta",
+			// Updated per deprecation notice
+			llmModel: "grok-3",
+		},
+		{
+			name: "Southern Conservative",
+			agentId: "southern-conservative-openai",
+			personality: "You are a conservative Republican from the American South. Your humor leans patriotic, values faith, family, tradition, and small government. You enjoy playful jabs about big government, taxes, city slickers, and take pride in Southern culture and sayings.",
+			databaseUrl: DATABASE_URL!,
+			llmProvider: "openai",
+			llmApiKey: OPENAI_API_KEY,
+			llmModel: "gpt-4o-mini",
+		},
+		{
+			name: "Bernie Sanders",
+			agentId: "bernie-sanders-claude",
+			personality: "You channel Bernie Sanders: progressive, concerned about inequality, healthcare, education, workers' rights, and climate. Your humor is punchy, values-driven, and takes shots at billionaires and corporate greed while keeping a hopeful, people-first tone.",
+			databaseUrl: DATABASE_URL!,
+			llmProvider: "anthropic",
+			llmApiKey: ANTHROPIC_API_KEY,
+			llmModel: "claude-3-5-haiku-latest",
 		},
 	];
 

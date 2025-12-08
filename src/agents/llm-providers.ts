@@ -82,18 +82,16 @@ Respond in JSON format:
 	async generateJoke(
 		provider: LLMProvider,
 		model: string,
-		personality: string,
-		category?: string
+		personality: string
 	): Promise<JokeGeneration | null> {
 		const prompt = `You are a comedian with this personality: ${personality}
 
-Generate a funny joke${category ? ` in the "${category}" category` : ""}. 
-Make it original and match your personality.
+Generate a brand-new joke from scratch that matches your personality. Do NOT reuse or reference any prior jokes or database content—invent something fresh each time.
 
 Respond with JSON:
 {
   "content": "<the joke>",
-  "category": "<category>"
+  "category": "<category that fits the joke>"
 }`;
 
 		switch (provider) {
@@ -281,4 +279,3 @@ Respond with JSON:
 		}
 	}
 }
-

@@ -137,13 +137,12 @@ export class ComedyAgent {
 	/**
 	 * Generate a new joke using LLM
 	 */
-	private async generateJoke(category?: string): Promise<{ content: string; category: string } | null> {
+	private async generateJoke(): Promise<{ content: string; category: string } | null> {
 		try {
 			return await this.llmManager.generateJoke(
 				this.config.llmProvider,
 				this.config.llmModel || "default",
-				this.config.personality,
-				category
+				this.config.personality
 			);
 		} catch (error) {
 			console.error(`  ⚠️  Joke generation failed:`, error);
@@ -174,7 +173,7 @@ export class ComedyAgent {
 			}
 
 			const jokeId = joke.id;
-			console.log(`  📖 Reading joke #${jokeId}: "${joke.content.substring(0, 60)}..."`);
+			console.log(`  📖 Reading joke #${jokeId}: "${joke.content}"`);
 
 			// 2. Evaluate the joke using LLM
 			console.log(`  🤔 Evaluating with ${this.config.llmProvider}...`);
@@ -195,13 +194,13 @@ export class ComedyAgent {
 				console.log(`  💭 Stored memory with tags: ${evaluation.tags.join(", ")}`);
 			}
 
-			// 5. Generate and add a new joke (30% chance, or if we haven't added one recently)
-			if (Math.random() > 0.7 || this.conversationHistory.length === 0) {
+			// 5. Generate and add a new joke (50% chance each turn)
+			if (Math.random() >= 0.5) {
 				console.log(`  ✨ Generating new joke...`);
 				const newJoke = await this.generateJoke();
 				if (newJoke && newJoke.content) {
 					const added = await this.addJoke(newJoke.content, newJoke.category);
-					console.log(`  🎉 Added new joke: "${newJoke.content.substring(0, 60)}..."`);
+					console.log(`  🎉 Added new joke: "${newJoke.content}"`);
 					
 					this.conversationHistory.push({
 						agent: this.config.name,
