@@ -4,8 +4,6 @@ The implementation mirrors the behavior of the TypeScript agent but uses
 in-memory helpers to keep the demo self contained.
 """
 
-from __future__ import annotations
-
 import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -62,7 +60,7 @@ class ComedyAgent:
 		notes: Optional[str],
 		tags: Optional[List[str]],
 	) -> Dict[str, str]:
-		return await self.db_client.store_memory(joke_id, rating, notes, tags)
+		return await self.db_client.store_memory(joke_id, self.config.agent_id, rating, notes, tags)
 
 	async def search_jokes(
 		self,
@@ -75,36 +73,64 @@ class ComedyAgent:
 	async def _evaluate_joke(self, joke: Dict[str, str]):
 		provider = self.config.llm_provider
 		model = self.config.llm_model or "default"
-		return self.llm_manager.evaluate_joke(provider, model, self.config.personality, joke)
+		try:
+			return self.llm_manager.evaluate_joke(provider, model, self.config.personality, joke)
+		except Exception as exc:
+			# Fallback to a deterministic pseudo-score if stub ever fails
+			print(f"  ⚠️  LLM evaluation failed, using fallback: {exc}")
+			return self.llm_manager.evaluate_joke("local", "fallback", self.config.personality, joke)
 
 	async def _generate_joke(self):
 		provider = self.config.llm_provider
 		model = self.config.llm_model or "default"
-		return self.llm_manager.generate_joke(provider, model, self.config.personality)
+		try:
+			return self.llm_manager.generate_joke(provider, model, self.config.personality)
+		except Exception as exc:
+			print(f"  ⚠️  Joke generation failed: {exc}")
+			return None
 
 	async def take_turn(self, iteration: int) -> None:
-		print(f"\n[{self.config.name}] Turn {iteration} using {self.config.llm_provider}")
+		print(f"\n[Agent] {self.config.name} ({self.config.llm_provider}) - Turn {iteration}")
+		print(f"   Personality: {self.config.personality}")
 
-		joke = await self.get_random_joke()
-		if not joke or not joke.get("content"):
-			print("No joke available, skipping.")
-			return
+		try:
+			joke = await self.get_random_joke()
+			if not joke or not joke.get("content"):
+				print("  ⚠️  No joke found, skipping turn")
+				return
 
-		print(f"Heard joke #{joke.get('id')}: {joke.get('content')}")
-		evaluation = await self._evaluate_joke(joke)
-		await self.rate_joke(joke.get("id"), evaluation.rating, evaluation.comment)
-		await self.store_memory(joke.get("id"), evaluation.rating, evaluation.notes, evaluation.tags)
-		print(f"Rated {evaluation.rating}/10 - {evaluation.comment}")
+			joke_id = joke.get("id")
+			print(f"  Reading joke #{joke_id}: \"{joke.get('content')}\"")
 
-		if random.random() >= 0.5:
-			generated = await self._generate_joke()
-			if generated and generated.get("content"):
-				await self.add_joke(generated["content"], generated.get("category"))
-				self.conversation_history.append({
-					"agent": self.config.name,
-					"joke": generated["content"],
-				})
-				print(f"Shared new joke: {generated['content']}")
+			print(f"  Evaluating with {self.config.llm_provider}...")
+			evaluation = await self._evaluate_joke(joke)
+
+			if joke_id is not None:
+				await self.rate_joke(joke_id, evaluation.rating, evaluation.comment)
+				print(f"  Rated: {evaluation.rating}/10 - \"{evaluation.comment}\"")
+
+				await self.store_memory(
+					joke_id,
+					evaluation.rating,
+					evaluation.notes,
+					evaluation.tags,
+				)
+				print(f"  Stored memory with tags: {', '.join(evaluation.tags)}")
+
+			if random.random() >= 0.5:
+				print("  Generating new joke...")
+				generated = await self._generate_joke()
+				if generated and generated.get("content"):
+					await self.add_joke(generated["content"], generated.get("category"))
+					self.conversation_history.append({
+						"agent": self.config.name,
+						"joke": generated["content"],
+					})
+					print(f"  Added new joke: \"{generated['content']}\"")
+
+			print("  ✅ Turn complete!")
+		except Exception as exc:
+			print(f"  ❌ Error in turn: {exc}")
 
 	def get_conversation_history(self) -> List[Dict[str, str]]:
 		return list(self.conversation_history)

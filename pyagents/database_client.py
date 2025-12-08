@@ -4,8 +4,6 @@ The TypeScript version connects to PostgreSQL. For the Python demo we keep
 state in memory so the script can run without external services.
 """
 
-from __future__ import annotations
-
 import itertools
 import random
 from typing import Any, Dict, List, Optional
@@ -69,12 +67,14 @@ class AgentDatabaseClient:
 	async def store_memory(
 		self,
 		joke_id: Optional[int],
+		agent_id: str,
 		rating: int,
 		notes: Optional[str],
 		tags: Optional[List[str]],
 	) -> Dict[str, Any]:
 		return {
 			"joke_id": joke_id,
+			"agent_id": agent_id,
 			"rating": rating,
 			"notes": notes,
 			"tags": tags or [],

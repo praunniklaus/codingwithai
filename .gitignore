@@ -37,6 +37,7 @@ coverage
 .grunt
 
 # Bower dependency directory (https://bower.io/)
+codingwithai\.venv
 
 bower_components
 
@@ -172,3 +173,8 @@ dist
 .wrangler/
 
 # Extra folders
+
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.pyc
