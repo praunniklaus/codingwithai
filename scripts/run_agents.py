@@ -74,14 +74,14 @@ def build_agent_configs(database_url: str, llm_manager: LLMProviderManager, use_
 		),
 		AgentConfig(
 			name="Southern Conservative",
-			agent_id="southern-conservative-openai",
+			agent_id="southern-conservative-grok",
 			personality=(
 				"Conservative humor with emphasis on tradition, family, and small government."
 			),
 			database_url=database_url,
-			llm_provider="openai",
-			llm_api_key=os.getenv("OPENAI_API_KEY"),
-			llm_model="gpt-4o-mini",
+			llm_provider="grok",
+			llm_api_key=os.getenv("GROK_API_KEY"),
+			llm_model="grok-3",
 		),
 		AgentConfig(
 			name="Bernie Sanders",

@@ -165,7 +165,7 @@ class SandboxedAgentToolsWrapper:
 					Permission.MCP_AC_SYSTEM_ENV_READ if Permission else "mcp.ac.system.env.read",  # type: ignore
 				],
 				code_mount=workspace_root_posix,
-				exec_command=["/usr/bin/python3", "/workspace/pyagents/mcp_server.py"],
+				exec_command=f"cd {workspace_root_posix} && /usr/bin/python3 pyagents/mcp_server.py",
 			)
 
 			# Define runtime permissions (user will be prompted)
