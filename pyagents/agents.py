@@ -11,6 +11,11 @@ from typing import Dict, List, Optional
 from .database_client import AgentDatabaseClient
 from .llm_providers import LLMProviderManager
 
+try:
+	from .sandbox_tools import SandboxedAgentToolsWrapper
+except ImportError:
+	SandboxedAgentToolsWrapper = None
+
 
 @dataclass
 class AgentConfig:
@@ -24,12 +29,21 @@ class AgentConfig:
 
 
 class ComedyAgent:
-	def __init__(self, config: AgentConfig, llm_manager: LLMProviderManager):
+	def __init__(self, config: AgentConfig, llm_manager: LLMProviderManager, use_sandbox: bool = False):
 		self.config = config
 		self.db_client = AgentDatabaseClient(config.database_url)
 		self.llm_manager = llm_manager
 		self.is_connected = False
 		self.conversation_history: List[Dict[str, str]] = []
+		self.sandbox_tools = None
+
+		# Initialize sandbox wrapper if requested and available
+		if use_sandbox and SandboxedAgentToolsWrapper:
+			try:
+				self.sandbox_tools = SandboxedAgentToolsWrapper()
+				print(f"[{config.name}] Sandbox protection enabled")
+			except Exception as e:
+				print(f"[{config.name}] Sandbox initialization failed: {e}, falling back to in-process")
 
 	async def connect(self) -> None:
 		await self.db_client.connect()
@@ -48,9 +62,31 @@ class ComedyAgent:
 		category: Optional[str],
 		language: str = "en",
 	) -> Dict[str, str]:
+		if self.sandbox_tools:
+			return await self.sandbox_tools.execute_sandboxed(
+				"add_joke",
+				{
+					"content": content,
+					"category": category,
+					"language": language,
+					"agent_id": self.config.agent_id,
+				},
+				self.db_client,
+			)
 		return await self.db_client.add_joke(content, category, language, self.config.agent_id)
 
 	async def rate_joke(self, joke_id: Optional[int], rating: int, comment: Optional[str]) -> Dict[str, str]:
+		if self.sandbox_tools:
+			return await self.sandbox_tools.execute_sandboxed(
+				"rate_joke",
+				{
+					"joke_id": joke_id,
+					"rating": rating,
+					"comment": comment,
+					"agent_id": self.config.agent_id,
+				},
+				self.db_client,
+			)
 		return await self.db_client.rate_joke(joke_id, self.config.agent_id, rating, comment)
 
 	async def store_memory(
@@ -60,6 +96,18 @@ class ComedyAgent:
 		notes: Optional[str],
 		tags: Optional[List[str]],
 	) -> Dict[str, str]:
+		if self.sandbox_tools:
+			return await self.sandbox_tools.execute_sandboxed(
+				"store_agent_memory",
+				{
+					"joke_id": joke_id,
+					"agent_id": self.config.agent_id,
+					"rating": rating,
+					"notes": notes,
+					"tags": tags,
+				},
+				self.db_client,
+			)
 		return await self.db_client.store_memory(joke_id, self.config.agent_id, rating, notes, tags)
 
 	async def search_jokes(

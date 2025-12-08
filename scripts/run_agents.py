@@ -37,7 +37,7 @@ def load_dev_vars() -> None:
 			os.environ[key] = value.strip()
 
 
-def build_agent_configs(database_url: str, llm_manager: LLMProviderManager) -> List[ComedyAgent]:
+def build_agent_configs(database_url: str, llm_manager: LLMProviderManager, use_sandbox: bool = False) -> List[ComedyAgent]:
 	configs = [
 		AgentConfig(
 			name="Pun Master",
@@ -96,7 +96,7 @@ def build_agent_configs(database_url: str, llm_manager: LLMProviderManager) -> L
 		),
 	]
 
-	agents: List[ComedyAgent] = [ComedyAgent(config, llm_manager) for config in configs]
+	agents: List[ComedyAgent] = [ComedyAgent(config, llm_manager, use_sandbox=use_sandbox) for config in configs]
 	return agents
 
 
@@ -105,6 +105,7 @@ async def main() -> None:
 
 	database_url = os.getenv("DATABASE_URL", "memory://jokes")
 	max_iterations = int(os.getenv("MAX_ITERATIONS", "10"))
+	use_sandbox = os.getenv("USE_SANDBOX", "false").lower() == "true"
 
 	openai_api_key = os.getenv("OPENAI_API_KEY")
 	anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -114,11 +115,12 @@ async def main() -> None:
 		print("DATABASE_URL not set. Using in-memory store for demo purposes.")
 
 	llm_manager = LLMProviderManager(openai_api_key, anthropic_api_key, grok_api_key)
-	agents = build_agent_configs(database_url, llm_manager)
+	agents = build_agent_configs(database_url, llm_manager, use_sandbox=use_sandbox)
 
 	print("Comedy Protocol - Python agents")
 	print(f"Database: {database_url}")
 	print(f"Max iterations: {max_iterations}")
+	print(f"Sandbox protection: {'enabled' if use_sandbox else 'disabled'}")
 
 	for agent in agents:
 		await agent.connect()
