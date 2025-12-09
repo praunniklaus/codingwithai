@@ -5,6 +5,7 @@ import { Props } from "./types";
 import { GitHubHandler } from "./auth/github-handler";
 import { closeDb } from "./database/connection";
 import { registerAllTools } from "./tools/register-tools";
+import { handleDevRequest } from "./dev-bypass.js";
 
 export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
@@ -37,7 +38,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
 	}
 }
 
-export default new OAuthProvider({
+const oauthProvider = new OAuthProvider({
 	apiHandlers: {
 		'/sse': MyMCP.serveSSE('/sse') as any,
 		'/mcp': MyMCP.serve('/mcp') as any,
@@ -47,3 +48,29 @@ export default new OAuthProvider({
 	defaultHandler: GitHubHandler as any,
 	tokenEndpoint: "/token",
 });
+
+// Development mode: Add /mcp-dev endpoint that bypasses OAuth
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		const url = new URL(request.url);
+		
+		// Handle CORS preflight
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+				},
+			});
+		}
+		
+		// Dev endpoint that bypasses OAuth (only in development)
+		if (url.pathname === '/mcp-dev' && (env.NODE_ENV === 'development' || !env.NODE_ENV)) {
+			return handleDevRequest(request, env);
+		}
+		
+		// All other requests go through OAuth provider
+		return oauthProvider.fetch(request, env, ctx);
+	},
+};

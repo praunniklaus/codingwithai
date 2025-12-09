@@ -2,29 +2,39 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { Props } from "../types";
 import { registerDatabaseTools } from "./database-tools";
-import { registerComedyProtocolTools } from "./comedy-protocol-tools";
-import { registerTranslationTool } from "./translation-tool";
+import { registerUserProfileTools } from "./user-profile-tools";
+import { registerJobListingTools } from "./job-listing-tools";
+import { registerApplicationTools } from "./application-tools";
+import { registerCVTools } from "./cv-tools";
+import { registerRecommendationTools } from "./recommendation-tools";
+import { registerInsightsTools } from "./insights-tools";
 
 /**
- * Register all MCP tools based on user permissions
+ * Register all MCP tools for the Job Application Assistant
  * 
  * This includes:
  * - Database tools (listTables, queryDatabase, executeDatabase)
- * - Comedy Protocol tools (joke management, rating, agent memories)
- * - Translation tools (translate jokes to different languages)
+ * - User Profile tools (getUserProfile, updateUserProfile, manage skills/experience/education)
+ * - Job Listing tools (searchJobs, getJobById, manage job listings)
+ * - Application tools (createApplication, updateApplicationStatus, track applications)
+ * - CV tools (generateCV, generateCoverLetter, manage CV versions)
+ * - Recommendation tools (getRecommendations, updateRecommendationStatus)
+ * - Insights tools (getAgentInsights, addInsight, getUserAnalytics)
  * - Calculator tool (basic math operations)
  */
 export function registerAllTools(server: McpServer, env: Env, props: Props) {
 	// Register database tools
 	registerDatabaseTools(server, env, props);
 	
-	// Register Comedy Protocol tools (jokes, ratings, memories)
-	registerComedyProtocolTools(server, env, props);
+	// Register Job Application Assistant tools
+	registerUserProfileTools(server, env, props);
+	registerJobListingTools(server, env, props);
+	registerApplicationTools(server, env, props);
+	registerCVTools(server, env, props);
+	registerRecommendationTools(server, env, props);
+	registerInsightsTools(server, env, props);
 	
-	// Register translation tools
-	registerTranslationTool(server, env, props);
-	
-	// Register calculator tool
+	// Register calculator tool (useful utility)
 	server.tool(
 		"calculate",
 		{

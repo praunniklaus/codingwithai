@@ -12,7 +12,12 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "agents:start": "tsx scripts/run-agents.ts"
+    "agents:start": "tsx scripts/run-job-agents.ts",
+    "agents:job": "tsx scripts/run-job-agents.ts",
+    "agents:python": "python3 scripts/run_job_agents.py",
+    "agents:python:sandbox": "USE_SANDBOX=true python3 scripts/run_job_agents.py",
+    "fetch-jobs": "tsx scripts/fetch-rise-jobs.ts",
+    "create-recommendations": "tsx scripts/create-sample-recommendations.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
