@@ -1,4 +1,5 @@
 const MCP_API_URL = import.meta.env.VITE_MCP_API_URL || 'http://localhost:8792';
+const PYTHON_API_URL = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000';
 
 // Use dev endpoint in development to bypass OAuth
 const MCP_ENDPOINT = import.meta.env.DEV ? '/mcp-dev' : '/mcp';
@@ -219,8 +220,25 @@ export const createApplication = async (params: {
   user_id: string;
   job_id: number;
   notes?: string;
+  status?: string;
 }) => {
-  return callMCPTool('createApplication', params);
+  // Call Python REST API directly
+  const response = await fetch(`${PYTHON_API_URL}/api/applications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: params.user_id,
+      job_id: params.job_id,
+      notes: params.notes,
+      status: params.status || 'draft',  // Default to draft for CV generation
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to create application: ${response.statusText}`);
+  }
+  
+  return response.json();
 };
 
 export const getApplications = async (params: {
@@ -245,7 +263,24 @@ export const generateCV = async (params: {
   job_id: number;
   format?: 'markdown' | 'plain' | 'html';
 }) => {
-  return callMCPTool('generateCV', params);
+  // Call Python REST API directly
+  const response = await fetch(`${PYTHON_API_URL}/api/generate-cv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: params.user_id,
+      job_id: params.job_id,
+      format: params.format || 'markdown',
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Generate CV error response:', errorText);
+    throw new Error(`Failed to generate CV: ${errorText || response.statusText}`);
+  }
+  
+  return response.json();
 };
 
 export const generateCoverLetter = async (params: {
@@ -253,7 +288,22 @@ export const generateCoverLetter = async (params: {
   job_id: number;
   tone?: 'professional' | 'friendly' | 'formal' | 'enthusiastic';
 }) => {
-  return callMCPTool('generateCoverLetter', params);
+  // Call Python REST API directly
+  const response = await fetch(`${PYTHON_API_URL}/api/generate-cover-letter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: params.user_id,
+      job_id: params.job_id,
+      tone: params.tone || 'professional',
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to generate cover letter: ${response.statusText}`);
+  }
+  
+  return response.json();
 };
 
 // Insights APIs

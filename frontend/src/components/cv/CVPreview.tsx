@@ -3,6 +3,8 @@ import { X, Download, FileText, CheckCircle, RefreshCw } from 'lucide-react';
 import { Button } from '../shared/Button';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
 import { useState } from 'react';
+import { generateCV, generateCoverLetter } from '../../services/api';
+import toast from 'react-hot-toast';
 
 interface CVPreviewProps {
   userId: string;
@@ -16,7 +18,7 @@ interface CVPreviewProps {
 
 export const CVPreview = ({ 
   userId, 
-  jobId: _jobId, 
+  jobId, 
   jobTitle, 
   company, 
   isOpen, 
@@ -32,16 +34,36 @@ export const CVPreview = ({
     setIsGenerating(true);
     setGenerationStep('cv');
     
-    // Simulate CV generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setCvContent(`# ${userId}'s CV\n\n## Professional Summary\n...`);
-    setGenerationStep('cover-letter');
-    
-    // Simulate cover letter generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setCoverLetterContent(`Dear Hiring Manager,\n\nI am writing to express my interest...`);
-    setGenerationStep('complete');
-    setIsGenerating(false);
+    try {
+      // Generate CV using the API
+      toast.loading('Generating CV...', { id: 'generate-cv' });
+      const cvResult = await generateCV({
+        user_id: userId,
+        job_id: jobId,
+        format: 'markdown',
+      });
+      setCvContent(cvResult.content);
+      toast.success('CV generated!', { id: 'generate-cv' });
+      
+      setGenerationStep('cover-letter');
+      
+      // Generate cover letter using the API
+      toast.loading('Generating cover letter...', { id: 'generate-cover' });
+      const coverResult = await generateCoverLetter({
+        user_id: userId,
+        job_id: jobId,
+        tone: 'professional',
+      });
+      setCoverLetterContent(coverResult.content);
+      toast.success('Cover letter generated!', { id: 'generate-cover' });
+      
+      setGenerationStep('complete');
+    } catch (error) {
+      console.error('Failed to generate documents:', error);
+      toast.error('Failed to generate documents. Please try again.', { id: 'generate-error' });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (!isOpen) return null;

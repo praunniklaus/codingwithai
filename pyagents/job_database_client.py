@@ -333,3 +333,27 @@ class JobDatabaseClient:
             )
             return [dict(row) for row in await cur.fetchall()]
 
+    async def create_application(
+        self,
+        user_id: str,
+        job_id: int,
+        status: str = "draft",
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a new job application."""
+        await self.connect()
+        if not self._conn:
+            raise RuntimeError("Database not connected")
+
+        async with self._conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                """
+                INSERT INTO applications (user_id, job_id, status, notes)
+                VALUES (%s, %s, %s, %s)
+                RETURNING *
+                """,
+                (user_id, job_id, status, notes),
+            )
+            result = await cur.fetchone()
+            await self._conn.commit()
+            return dict(result)

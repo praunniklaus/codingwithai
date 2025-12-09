@@ -110,7 +110,7 @@ async def main():
         database_url=database_url,
         llm_provider="anthropic",
         llm_api_key=anthropic_api_key,
-        llm_model="claude-3-5-sonnet-20241022",
+        llm_model="claude-3-sonnet-20240229",
         target_user_id=target_user_id,
     )
 
@@ -172,5 +172,8 @@ async def main():
 
 
 if __name__ == "__main__":
+    # On Windows, psycopg async requires selector-based loops instead of Proactor.
+    if sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())
 

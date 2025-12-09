@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "name": "job-application-mcp-server",
+  "description": "Sandboxed MCP server for Job Application Assistant tools",
+  "registry": "pypi",
+  "package": "@local/job-application",
+  "permissions": [
+    "mcp.ac.filesystem.read",
+    "mcp.ac.filesystem.write",
+    "mcp.ac.network.client",
+    "mcp.ac.system.env.read"
+  ],
+  "resources": [
+    {
+      "type": "database",
+      "path": "/tmp/job_db",
+      "permissions": ["read", "write"]
+    }
+  ],
+  "network": {
+    "enabled": true,
+    "allowedDomains": [
+      "api.openai.com",
+      "api.anthropic.com",
+      "api.x.ai"
+    ],
+    "allowedPorts": [443]
+  },
+  "environment": {
+    "required": [
+      "DATABASE_URL",
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY"
+    ],
+    "optional": [
+      "GROK_API_KEY"
+    ]
+  },
+  "tools": [
+    {
+      "name": "add_recommendation",
+      "description": "Add a job recommendation for a user",
+      "security": {
+        "isolation": "container",
+        "network": "restricted",
+        "filesystem": "read-write"
+      }
+    },
+    {
+      "name": "save_cv",
+      "description": "Save a generated CV",
+      "security": {
+        "isolation": "container",
+        "network": "restricted",
+        "filesystem": "read-write"
+      }
+    },
+    {
+      "name": "save_cover_letter",
+      "description": "Save a generated cover letter",
+      "security": {
+        "isolation": "container",
+        "network": "restricted",
+        "filesystem": "read-write"
+      }
+    },
+    {
+      "name": "update_application_status",
+      "description": "Update application status",
+      "security": {
+        "isolation": "container",
+        "network": "restricted",
+        "filesystem": "read-write"
+      }
+    },
+    {
+      "name": "add_insight",
+      "description": "Add an agent insight",
+      "security": {
+        "isolation": "container",
+        "network": "restricted",
+        "filesystem": "read-write"
+      }
+    }
+  ]
+}

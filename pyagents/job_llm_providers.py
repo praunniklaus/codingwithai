@@ -8,9 +8,27 @@ Supports OpenAI, Anthropic (Claude), and Grok (xAI) APIs for:
 """
 
 import json
+import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional
+
+
+# Default to a broadly available Anthropic model; allow override via env.
+ANTHROPIC_DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+
+
+def serialize_for_json(obj: Any) -> Any:
+    """Convert objects to JSON-serializable format."""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_for_json(item) for item in obj]
+    return obj
+
 
 try:
     from anthropic import Anthropic, AnthropicError  # type: ignore
@@ -199,7 +217,7 @@ Respond with JSON:
         return f"""Generate a tailored CV/resume for this job application.
 
 User Profile:
-{json.dumps(user_profile, indent=2)[:2000]}
+{json.dumps(serialize_for_json(user_profile), indent=2)[:2000]}
 
 Job Requirements:
 - Title: {job.get('title', 'N/A')}
@@ -275,7 +293,7 @@ Insight types: success_pattern, bottleneck, improvement_area, trend"""
 
     def _score_match_anthropic(self, client: Any, model: str, prompt: str) -> JobMatchResult:
         message = client.messages.create(
-            model=model or "claude-3-5-sonnet-20241022",
+            model=model or ANTHROPIC_DEFAULT_MODEL,
             max_tokens=200,
             temperature=0.3,
             messages=[{"role": "user", "content": prompt}],
@@ -301,7 +319,7 @@ Insight types: success_pattern, bottleneck, improvement_area, trend"""
 
     def _generate_cv_anthropic(self, client: Any, model: str, prompt: str) -> CVResult:
         message = client.messages.create(
-            model=model or "claude-3-5-sonnet-20241022",
+            model=model or ANTHROPIC_DEFAULT_MODEL,
             max_tokens=2000,
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}],
@@ -327,7 +345,7 @@ Insight types: success_pattern, bottleneck, improvement_area, trend"""
 
     def _generate_cover_letter_anthropic(self, client: Any, model: str, prompt: str) -> CoverLetterResult:
         message = client.messages.create(
-            model=model or "claude-3-5-sonnet-20241022",
+            model=model or ANTHROPIC_DEFAULT_MODEL,
             max_tokens=800,
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}],
@@ -357,7 +375,7 @@ Insight types: success_pattern, bottleneck, improvement_area, trend"""
         self, client: Any, model: str, prompt: str, applications: List[Dict[str, Any]]
     ) -> List[ApplicationInsight]:
         message = client.messages.create(
-            model=model or "claude-3-5-sonnet-20241022",
+            model=model or ANTHROPIC_DEFAULT_MODEL,
             max_tokens=1000,
             temperature=0.5,
             messages=[{"role": "user", "content": prompt}],
@@ -392,6 +410,11 @@ Insight types: success_pattern, bottleneck, improvement_area, trend"""
                     return CVResult(content=content, format=format_type)
         except Exception:
             pass
+        # Gracefully handle non-JSON but non-empty responses
+        stripped = (text or "").strip()
+        if stripped:
+            return CVResult(content=stripped, format="markdown")
+
         # Fallback
         return CVResult(content="# CV\n\n[Failed to generate]", format="markdown")
 

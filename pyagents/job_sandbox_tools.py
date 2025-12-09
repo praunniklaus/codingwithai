@@ -64,6 +64,14 @@ class SandboxedJobToolsWrapper:
         self.sandbox_initialized = False
         self.server_connected = False
 
+        # Windows Docker + AgentBound combo can fail with WinError 193; allow override via env.
+        force_sandbox = os.environ.get("FORCE_JOB_SANDBOX", "false").lower() == "true"
+        if os.name == "nt" and not force_sandbox:
+            print("[Sandbox] Windows detected; skipping Docker sandbox and using in-process tools")
+            return
+        if os.name == "nt" and force_sandbox:
+            print("[Sandbox] Windows detected but FORCE_JOB_SANDBOX=true set; attempting sandbox anyway")
+
         # Initialize sandbox if SDK is available
         if not SandboxedMCPStdio or not DevMCPManifest:
             print("[Sandbox] AgentBound SDK not available, falling back to in-process")
@@ -87,7 +95,10 @@ class SandboxedJobToolsWrapper:
                     Permission.MCP_AC_SYSTEM_ENV_READ if Permission else "mcp.ac.system.env.read",  # type: ignore
                 ],
                 code_mount=workspace_root_posix,
-                exec_command=f"cd {workspace_root_posix} && /usr/bin/python3 pyagents/job_mcp_server.py",
+                exec_command=(
+                    f"cd {workspace_root_posix} && "
+                    "/usr/bin/python3 pyagents/job_mcp_server.py"
+                ),
             )
 
             # Define runtime permissions

@@ -14,8 +14,9 @@
     "test:run": "vitest run",
     "agents:start": "tsx scripts/run-job-agents.ts",
     "agents:job": "tsx scripts/run-job-agents.ts",
-    "agents:python": "python3 scripts/run_job_agents.py",
-    "agents:python:sandbox": "USE_SANDBOX=true python3 scripts/run_job_agents.py",
+    "agents:python": "node scripts/run_python_agents.js",
+    "agents:python:sandbox": "cross-env USE_SANDBOX=true node scripts/run_python_agents.js",
+    "api:start": "node scripts/run_api_server.js",
     "fetch-jobs": "tsx scripts/fetch-rise-jobs.ts",
     "create-recommendations": "tsx scripts/create-sample-recommendations.ts"
   },
@@ -43,6 +44,7 @@
     "typescript": "^5.8.3",
     "vi-fetch": "^0.8.0",
     "vitest": "^3.2.4",
-    "wrangler": "^4.23.0"
+    "wrangler": "^4.23.0",
+    "cross-env": "^7.0.3"
   }
 }
