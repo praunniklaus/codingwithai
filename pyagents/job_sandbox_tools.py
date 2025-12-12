@@ -1,7 +1,7 @@
 """AgentBound sandbox-protected tool definitions for Job Application Assistant.
 
 This module wraps the job application tools to execute safely inside Docker containers
-via the MCP sandbox, similar to the comedy protocol sandbox.
+via the MCP sandbox.
 """
 
 from typing import Any, Dict, Optional
@@ -97,6 +97,7 @@ class SandboxedJobToolsWrapper:
                 code_mount=workspace_root_posix,
                 exec_command=(
                     f"cd {workspace_root_posix} && "
+                    "python3 -m pip install -q --no-cache-dir psycopg[binary] && "
                     "/usr/bin/python3 pyagents/job_mcp_server.py"
                 ),
             )
@@ -220,4 +221,3 @@ class SandboxedJobToolsWrapper:
             )
 
         raise ValueError(f"Tool {tool_name} not implemented in fallback")
-
