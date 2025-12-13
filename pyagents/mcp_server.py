@@ -102,6 +102,17 @@ def handle_list_tools(id: Any) -> None:
 				},
 			},
 		},
+		{
+			"name": "cv_parse_text",
+			"description": "Parse a CV file (pdf/docx/txt) and return extracted fields",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"file_path": {"type": "string", "description": "Absolute path to CV file"},
+				},
+				"required": ["file_path"],
+			},
+		},
 	]
 
 	response = {"jsonrpc": "2.0", "id": id, "result": {"tools": tools}}
@@ -110,22 +121,90 @@ def handle_list_tools(id: Any) -> None:
 
 def handle_call_tool(id: Any, tool_name: str, arguments: Dict[str, Any]) -> None:
 	"""Execute a tool call (sandboxed)."""
-	# In the sandbox, these operations are isolated
-	result = {
-		"content": [
-			{
-				"type": "text",
-				"text": json.dumps(
-					{
-						"status": "success",
-						"tool": tool_name,
-						"arguments": arguments,
-						"message": f"Sandboxed execution of {tool_name}",
-					}
-				),
+	try:
+		if tool_name == "cv_parse_text":
+			file_path = arguments.get("file_path")
+			if not file_path:
+				raise ValueError("file_path is required")
+			ext = (file_path.split(".")[-1] or "").lower()
+			text = ""
+			try:
+				if ext == "txt":
+					with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+						text = f.read()
+				elif ext == "docx":
+					try:
+						from docx import Document
+						d = Document(file_path)
+						text = "\n".join([p.text for p in d.paragraphs])
+					except Exception:
+						text = ""
+				elif ext == "pdf":
+					try:
+						from pdfminer.high_level import extract_text
+						text = extract_text(file_path) or ""
+					except Exception:
+						text = ""
+				else:
+					with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+						text = f.read()
+			except Exception as e:
+				text = ""
+
+			# Lightweight extraction similar to cv_parser_agent
+			import re
+			name = None
+			for line in text.splitlines()[:30]:
+				line = line.strip()
+				if not line or len(line) > 100:
+					continue
+				if re.match(r"^[A-Z][a-z']+(\s+[A-Z][a-z']+){1,3}$", line):
+					name = line
+					break
+
+			occupation = None
+			job_patterns = [
+				r"(Senior|Lead|Principal|Junior)?\s*(Software|Data|Cloud|Full.?Stack|DevOps|QA|UI\/UX)\s*(Engineer|Developer|Architect|Scientist|Analyst|Designer)",
+				r"(Manager|Director|Head|VP|CTO|CEO|CFO|COO)",
+				r"(Consultant|Specialist|Expert|Officer|Coordinator|Administrator)",
+			]
+			for line in text.splitlines()[:50]:
+				line = line.strip()
+				if not line or len(line) > 120:
+					continue
+				for pattern in job_patterns:
+					if re.search(pattern, line, re.I):
+						occupation = line
+						break
+				if occupation:
+					break
+
+			location = None
+			m = None
+			for line in text.splitlines()[:100]:
+				m = re.search(r"\b([A-Za-z\s\-']+),\s*([A-Za-z\s\-']{2,})\b", line)
+				if m:
+					location = f"{m.group(1).strip()}, {m.group(2).strip()}"
+					break
+
+			payload = {
+				"status": "success",
+				"tool": tool_name,
+				"arguments": arguments,
+				"text": text,
+				"extracted": {"name": name, "occupation": occupation, "location": location},
 			}
-		]
-	}
+		else:
+			payload = {
+				"status": "success",
+				"tool": tool_name,
+				"arguments": arguments,
+				"message": f"Sandboxed execution of {tool_name}",
+			}
+
+		result = {"content": [{"type": "text", "text": json.dumps(payload)}]}
+	except Exception as e:
+		result = {"content": [{"type": "text", "text": json.dumps({"status": "error", "error": str(e)})}]}
 
 	response = {"jsonrpc": "2.0", "id": id, "result": result}
 	write_message(response)
@@ -133,7 +212,6 @@ def handle_call_tool(id: Any, tool_name: str, arguments: Dict[str, Any]) -> None
 
 def main() -> None:
 	"""Main MCP server loop."""
-	write_message({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
 	while True:
 		try:
@@ -154,7 +232,8 @@ def main() -> None:
 				arguments = params.get("arguments", {})
 				handle_call_tool(msg_id, tool_name, arguments)
 			elif method == "notifications/initialized":
-				pass  # Client acknowledged initialization
+				# Ignore unexpected notification; server should not send it proactively
+				pass
 			else:
 				# Unknown method
 				error_response = {

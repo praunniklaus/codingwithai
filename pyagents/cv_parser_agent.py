@@ -3,7 +3,7 @@ import json
 import sys
 from typing import Dict, Optional
 
-from .sandbox_tools import run_in_sandbox
+from .sandbox_tools import run_in_sandbox, SandboxedAgentToolsWrapper
 
 
 def extract_fields_from_text(text: str) -> Dict[str, Optional[str]]:
@@ -63,63 +63,45 @@ def extract_fields_from_text(text: str) -> Dict[str, Optional[str]]:
 
 
 def parse_cv_file(file_path: str) -> Dict[str, Optional[str]]:
-    """Parse a CV from PDF, DOCX, or TXT in a sandbox and return extracted fields."""
-    ext = os.path.splitext(file_path)[1].lower()
-    
+    """Parse a CV using full MCP sandbox tool and return extracted fields."""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"CV file not found: {file_path}")
 
-    # Use a raw string (not f-string) to avoid escaping issues
-    script = """
-import sys, os, json
-
-ext = os.path.splitext(sys.argv[1])[1].lower()
-text = ""
-
-try:
-    if ext == ".txt":
-        with open(sys.argv[1], "r", encoding="utf-8", errors="ignore") as f:
-            text = f.read()
-    elif ext == ".docx":
-        try:
-            from docx import Document
-            d = Document(sys.argv[1])
-            text = "\\n".join([p.text for p in d.paragraphs])
-        except Exception:
-            text = ""
-    elif ext == ".pdf":
-        try:
-            from pdfminer.high_level import extract_text
-            text = extract_text(sys.argv[1]) or ""
-        except Exception:
-            text = ""
-    else:
-        with open(sys.argv[1], "r", encoding="utf-8", errors="ignore") as f:
-            text = f.read()
-except Exception as e:
-    import traceback
-    sys.stderr.write(f"Error reading file: {e}\\n")
-    sys.stderr.write(traceback.format_exc())
-    text = ""
-
-print(json.dumps({"text": text}))
-"""
-
-    result = run_in_sandbox(script, args=[file_path])
-    
-    # Log subprocess results for debugging
-    if result.get("stderr"):
-        print(f"[CV Parser] Sandbox stderr: {result.get('stderr')}")
-    
-    if result.get("returncode") != 0:
-        raise RuntimeError(f"Sandbox process failed (code {result.get('returncode')}): {result.get('stderr', 'no error message')}")
-    
+    # Use MCP sandboxed server to call cv_parse_text
+    wrapper = SandboxedAgentToolsWrapper()
     try:
-        payload = json.loads(result["stdout"]) if result and result.get("stdout") else {"text": ""}
+        # No db_client needed; pass None as this tool doesn't use it in-process
+        result = None
+        if getattr(wrapper, 'mcp_server', None):
+            # Connect and call tool
+            # Note: execute_sandboxed requires async; provide a synchronous shim here
+            import asyncio
+            async def _call():
+                await wrapper.mcp_server.connect()
+                resp = await wrapper.mcp_server.call_tool('cv_parse_text', { 'file_path': file_path })
+                return resp
+            resp = asyncio.get_event_loop().run_until_complete(_call())
+            # MCP returns content list with text JSON
+            content = resp.get('content', [])
+            text_item = next((c for c in content if c.get('type') == 'text'), None)
+            payload = json.loads(text_item.get('text')) if text_item else {}
+            extracted = payload.get('extracted') or extract_fields_from_text(payload.get('text', '') or '')
+            return extracted
+        else:
+            # Fallback to local extraction if sandbox not available
+            print('[CV Parser] MCP sandbox not available, using local heuristics')
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                text = f.read()
+            return extract_fields_from_text(text)
     except Exception as e:
-        raise ValueError(f"Failed to parse sandbox output: {str(e)}. Output was: {result.get('stdout', 'empty')}")
-
-    return extract_fields_from_text(payload.get("text", ""))
+        print(f"[CV Parser] MCP call failed: {e}")
+        # Fallback in case of errors
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                text = f.read()
+            return extract_fields_from_text(text)
+        except Exception:
+            return { 'name': None, 'occupation': None, 'location': None }
 
 
 def handle_cv_parse(file_path: str) -> Dict[str, Optional[str]]:
