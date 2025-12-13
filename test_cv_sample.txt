@@ -1,0 +1,22 @@
+John Doe
+john.doe@example.com
++41 79 123 4567
+
+Senior Software Engineer
+Zurich, Switzerland
+
+EXPERIENCE
+-----------
+Software Engineer at TechCorp GmbH (2020-2025)
+• Developed scalable Python applications
+• Led cloud migrations
+
+EDUCATION
+---------
+Bachelor of Science in Computer Science
+ETH Zurich
+2018-2020
+
+SKILLS
+------
+Python, JavaScript, AWS, Docker, Machine Learning

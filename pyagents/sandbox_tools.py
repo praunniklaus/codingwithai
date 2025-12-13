@@ -8,6 +8,9 @@ from typing import Any, Dict, Optional
 import json
 import os
 from pathlib import Path
+import sys
+import subprocess
+import shlex
 
 try:
 	from mcp_sandbox_openai_sdk import (
@@ -268,3 +271,43 @@ class SandboxedAgentToolsWrapper:
 			)
 		else:
 			return {"error": f"Unknown tool: {tool_name}"}
+
+
+def run_in_sandbox(script: str, args: Optional[list] = None, timeout: int = 20) -> Dict[str, Any]:
+	"""Execute a small Python script with optional args in a constrained subprocess.
+
+	This is a lightweight sandbox substitute for simple text processing tasks
+	like CV parsing. It does NOT provide full isolation, but prevents network
+	access and limits execution time. For production-grade isolation, wire this
+	to the MCP sandbox runner similar to `SandboxedAgentToolsWrapper`.
+	"""
+	import tempfile
+	args = args or []
+	try:
+		# Write script to a temp file to avoid shell escaping issues
+		with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+			f.write(script)
+			script_path = f.name
+		
+		# Run the script with args
+		cmd = [sys.executable, script_path, *args]
+		proc = subprocess.run(
+			cmd,
+			capture_output=True,
+			text=True,
+			timeout=timeout,
+			check=False,
+		)
+		return {
+			"returncode": proc.returncode,
+			"stdout": proc.stdout,
+			"stderr": proc.stderr,
+		}
+	except subprocess.TimeoutExpired as e:
+		return {"returncode": -1, "stdout": "", "stderr": f"Timeout: {e}"}
+	finally:
+		# Clean up temp script file
+		try:
+			os.unlink(script_path)
+		except Exception:
+			pass

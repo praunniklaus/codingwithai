@@ -12,6 +12,7 @@ import { TargetRolesQuestion } from './questions/TargetRolesQuestion';
 import { SalaryQuestion } from './questions/SalaryQuestion';
 import { DreamCompaniesQuestion } from './questions/DreamCompaniesQuestion';
 import { LoadingSpinner } from '../shared/LoadingSpinner';
+import CvUpload from '../../components/CvUpload';
 import { useStore } from '../../store/useStore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
@@ -260,6 +261,21 @@ export const OnboardingFlow = () => {
     }
   };
 
+  const handleCvParsed = (data: { name?: string|null; occupation?: string|null; location?: string|null; email?: string|null; phone?: string|null; }) => {
+    const updated = { ...answers };
+    if (data.name) {
+      updated[0] = data.name;
+    }
+    if (data.occupation) {
+      updated[1] = data.occupation;
+    }
+    if (data.location) {
+      updated[6] = [data.location];
+    }
+    setAnswers(updated);
+    localStorage.setItem('onboarding-answers', JSON.stringify(updated));
+  };
+
   // Safety check - AFTER all hooks
   if (!questions[currentStep]) {
     console.error('❌ No question found for step:', currentStep);
@@ -342,6 +358,12 @@ export const OnboardingFlow = () => {
         canProceed={canProceed}
         showBack={currentStep > 0}
       >
+        {/* Optional CV upload to prefill fields */}
+        {currentStep <= 2 && (
+          <div className="mb-4">
+            <CvUpload onParsed={handleCvParsed} />
+          </div>
+        )}
         {renderQuestion()}
       </QuestionScreen>
     </AnimatePresence>

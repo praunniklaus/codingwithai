@@ -6,16 +6,19 @@ This provides REST API endpoints for the frontend to interact with the agents.
 import os
 import sys
 import logging
+import tempfile
+import shutil
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .cv_crafter_agent import CVCrafterAgent, CVCrafterConfig
 from .job_database_client import JobDatabaseClient
 from .job_llm_providers import JobLLMProviderManager
+from .cv_parser_agent import handle_cv_parse
 
 
 # Default to a broadly available Anthropic model; allow override via env.
@@ -123,6 +126,36 @@ app.add_middleware(
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.post("/api/cv/parse")
+async def parse_cv(file: UploadFile = File(...)):
+    """Upload a CV file and return extracted fields using sandboxed parser."""
+    tmp_path = None
+    try:
+        logger.info(f"[CV Parse] Received file upload: {file.filename}")
+        
+        # Save uploaded file to temp location
+        with tempfile.NamedTemporaryFile(delete=False, suffix="_cv_" + (file.filename or "uploaded")) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            tmp_path = tmp.name
+        
+        logger.info(f"[CV Parse] Saved to temp: {tmp_path}")
+        
+        # Parse CV
+        data = handle_cv_parse(tmp_path)
+        logger.info(f"[CV Parse] Parsing succeeded, extracted keys: {list(data.keys())}")
+        
+        return {"extracted": data}
+    except Exception as e:
+        logger.error(f"[CV Parse] Error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 @app.post("/api/applications")
