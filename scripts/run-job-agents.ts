@@ -19,6 +19,7 @@ import { JobHunterAgent, JobHunterConfig } from "../src/agents/job-hunter-agent.
 import { CVCrafterAgent, CVCrafterConfig } from "../src/agents/cv-crafter-agent.js";
 import { ApplicationTrackerAgent, ApplicationTrackerConfig } from "../src/agents/application-tracker-agent.js";
 import { LLMProviderManager } from "../src/agents/llm-providers.js";
+import { JobDatabaseClient } from "../src/agents/job-database-client.js";
 
 // Load .dev.vars file (same format as wrangler uses)
 function loadDevVars(): void {
@@ -78,6 +79,10 @@ async function main() {
 	if (!GROK_API_KEY) {
 		console.warn("⚠️  WARNING: GROK_API_KEY not set. Application Tracker agent will use fallback behavior.");
 	}
+
+	// Wait for user input from the frontend before starting iterations
+	const onboardingSnapshot = await waitForUserSetup(DATABASE_URL!, TARGET_USER_ID);
+	printUserSnapshot(onboardingSnapshot);
 
 	// Initialize LLM Manager
 	const llmManager = new LLMProviderManager(
@@ -197,3 +202,67 @@ main().catch((error) => {
 	process.exit(1);
 });
 
+/**
+ * Wait until the user has completed onboarding in the frontend.
+ * We consider onboarding "ready" once the user profile exists with at least
+ * one skill or experience entry so the agents have context to work with.
+ */
+async function waitForUserSetup(databaseUrl: string, userId: string) {
+	const db = new JobDatabaseClient(databaseUrl);
+	await db.connect();
+
+	console.log("⏳ Waiting for user input from the frontend...");
+	console.log("   Complete onboarding in the UI, then data will sync here.");
+
+	while (true) {
+		const profile = await db.getUserProfile(userId);
+		const skills = profile?.skills || [];
+		const experience = profile?.experience || [];
+
+		if (profile && (skills.length > 0 || experience.length > 0)) {
+			const applications = await db.getApplications(userId);
+			const draftApplications = await db.getApplications(userId, "draft");
+			const jobs = await db.getJobListings(5);
+
+			await db.disconnect();
+
+			return {
+				profile,
+				skillsCount: skills.length,
+				experienceCount: experience.length,
+				applications,
+				draftApplications,
+				jobListingsSample: jobs.slice(0, 3),
+			};
+		}
+
+		console.log("   • Still waiting... no completed profile found. Retrying in 5s.");
+		await new Promise((resolve) => setTimeout(resolve, 5000));
+	}
+}
+
+/**
+ * Print a friendly snapshot of the inputs before agents start iterating.
+ */
+function printUserSnapshot(snapshot: {
+	profile: any;
+	skillsCount: number;
+	experienceCount: number;
+	applications: any[];
+	draftApplications: any[];
+	jobListingsSample: any[];
+}) {
+	const { profile, skillsCount, experienceCount, applications, draftApplications, jobListingsSample } = snapshot;
+
+	console.log("\n✅ User input detected — starting agents.");
+	console.log("------------------------------------------------------------");
+	console.log(`👤 Profile: ${profile.name || profile.user_id}`);
+	console.log(`📍 Location: ${profile.location || "N/A"} | Target role: ${profile.target_role || "N/A"}`);
+	console.log(`🧠 Skills: ${skillsCount} | Experience entries: ${experienceCount}`);
+	console.log(`📄 Applications: ${applications.length} (draft: ${draftApplications.length})`);
+	console.log("🗂️  Sample job listings the agents will see:");
+	jobListingsSample.forEach((job) => {
+		console.log(`   - ${job.title} at ${job.company} (${job.location || "Remote/Unknown"})`);
+	});
+	console.log("------------------------------------------------------------\n");
+}
